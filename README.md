@@ -1,6 +1,4 @@
-# Supplier-Canonical-Ingredient-Matching
-
-Ingredient Line Classifier
+# Ingredient Line Classifier
 
 This project uses pycaret to train a multi-class text classifier to categorize ingredient lines.
 
