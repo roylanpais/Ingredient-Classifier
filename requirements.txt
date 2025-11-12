@@ -1,0 +1,4 @@
+pycaret[nlp]>=3.2.0
+pytest
+pandas
+scikit-learn
