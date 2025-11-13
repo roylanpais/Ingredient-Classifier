@@ -1,53 +1,324 @@
-Design & Architectural Decisions
+# Architecture Decisions & Trade-offs
 
-This document outlines the key decisions made during the development of the ingredient line classifier.
+## Overview
+This document outlines key architectural and methodological decisions made during development, their rationale, trade-offs, and alternatives considered.
 
-1. Tooling: PyCaret
+---
 
-Decision: Use the pycaret[nlp] library as requested.
+## 1. Low-Code Approach with PyCaret
 
-Rationale: PyCaret is a high-level, low-code library that automates many of the tedious ML steps. Its pycaret.nlp module is specifically designed for text classification tasks. It handles text preprocessing (tokenization, stop-word removal, stemming/lemmatization, TF-IDF vectorization) and model comparison in a single setup() and compare_models() workflow.
+### Decision
+Use **PyCaret** for automated model selection and hyperparameter tuning.
 
-Trade-off: We are using classic ML models (e.g., Logistic Regression, Random Forest) on TF-IDF features. A more complex approach using fine-tuned Transformer models (like BERT) might yield higher accuracy but would be significantly more complex, slower, and resource-intensive. For short text lines, classic ML is a powerful and efficient baseline.
+### Rationale
+- **Efficiency**: Tests multiple algorithms (Logistic Regression, Random Forest, Gradient Boosting, SVM, Naive Bayes, KNN, etc.) in minimal code
+- **Reduced complexity**: Handles preprocessing, feature scaling, and cross-validation automatically
+- **Production-ready**: Built-in utilities for model saving, prediction, and metrics
+- **Quick iteration**: Ideal for small datasets (12 training samples) where manual model tuning would be premature
 
-2. Model Selection & Metric
+### Trade-offs
+| Trade-off | Impact |
+|-----------|--------|
+| Less control over preprocessing | Mitigated by custom preprocessing module that can be extended |
+| Binary reproducibility issues with some ensemble methods | Addressed by setting `seed` parameter |
+| Potential overfitting on small datasets | Controlled via cross-validation (PyCaret default: 10-fold) |
 
-Decision: Use compare_models() to find the best-performing model, optimizing for Macro F1 Score.
+### Alternatives Considered
+1. **Pure scikit-learn**: Offers more control but requires manual model testing and tuning (verbose for small datasets)
+2. **AutoML tools (H2O, TPOT)**: More expensive computationally; unnecessary for this problem size
 
-Rationale:
+### Recommendation for Scaling
+- If dataset grows >100K samples, transition to custom scikit-learn pipeline with explicit hyperparameter optimization (GridSearchCV/RandomizedSearchCV)
 
-compare_models() automatically trains and evaluates a wide range of classifiers, saving significant development time.
+---
 
-The target classes might be imbalanced (e.g., many ingredient_only lines, few non_food). Standard Accuracy can be misleading. Macro F1 calculates the F1 score for each class independently and then takes the unweighted average. This makes it a robust metric that ensures the model performs well on all classes, including the rare ones.
+## 2. Feature Engineering Strategy
 
-Implementation: We use add_metric('macro_f1', 'Macro F1', f1_score, average='macro') after setup() to add this metric to the scoring table, and then sort='Macro F1' in compare_models().
+### Decision
+Implement **lightweight rule-based + statistical features**:
+- Text length metrics (character count, word count)
+- Digit presence (indicator of quantities)
+- Verb detection (heuristic for instructions)
+- TF-IDF vectorization (standard text representation)
 
-3. Validation Strategy
+### Rationale
+- **Interpretability**: Features align with class semantics:
+  - `ingredient_with_qty`: High digit presence
+  - `instruction_like`: High verb count
+  - Text length helps distinguish classes
+- **Computational efficiency**: No deep learning needed for small dataset
+- **Robustness**: Explicit features prevent model from learning spurious patterns
 
-Decision: Use the 10-fold Cross-Validation (CV) results from compare_models() as the primary performance benchmark.
+### Trade-offs
+| Feature Type | Pros | Cons |
+|-------------|------|------|
+| Rule-based (verbs, digits) | Interpretable, fast | May miss edge cases, language-dependent |
+| TF-IDF | Captures semantic patterns | Generic; doesn't exploit domain knowledge |
+| Deep embeddings (BERT) | State-of-the-art | Overkill for 12 samples; prone to overfitting |
 
-Rationale: The user asked for metrics on the "test set," but the provided test.csv has no labels. The standard, robust way to estimate a model's performance on unseen data is cross-validation.
+### Examples
+```
+"Tomato" → features: [len=6, words=1, has_digits=0, has_verbs=0, tfidf_vector]
+"Milk 200 ml" → features: [len=11, words=3, has_digits=1, has_verbs=0, tfidf_vector]
+"Chop the onions" → features: [len=15, words=3, has_digits=0, has_verbs=1, tfidf_vector]
+```
 
-Process:
+### Alternative Considered
+- **Embeddings (Word2Vec, FastText)**: Would require external pre-trained models or large corpus; not suitable for this dataset size
 
-The setup() function is called on the entire train.csv.
+---
 
-compare_models() runs a 10-fold CV for each algorithm. The printed table (which we pull() and display) shows the average Macro F1 (and other metrics) across these 10 folds. This is our trusted performance estimate.
+## 3. Data Preprocessing Pipeline
 
-finalize_model() is then called on the best model, which retrains it on the full train.csv dataset. This model, trained on 100% of the available labeled data, is what we save for production.
+### Decision
+Implement **modular preprocessing** with these steps:
+1. Lowercasing
+2. Punctuation removal
+3. Optional stop word removal (configurable)
+4. Tokenization (NLTK-based)
+5. Lemmatization option
 
-4. Testing Strategy
+### Rationale
+- **Modularity**: Each step can be toggled via configuration
+- **Normalization**: Reduces feature space noise (e.g., "Chop" vs "chop")
+- **Reproducibility**: Fixed preprocessing order ensures consistent results
 
-Decision: Implement integration tests (pytest) that load the saved production model and test its predictions on specific edge cases.
+### Trade-offs
+| Decision | Trade-off |
+|----------|-----------|
+| Remove stopwords? | Removes noise (better for small datasets) vs. loses contextual info (rare for ingredient domain) |
+| Lemmatization? | Reduces feature dimensionality vs. loses word form information |
 
-Rationale: Simple unit tests (e.g., "does this function return a string?") are less valuable than testing the actual behavior of the trained model. Our tests in tests/test_classifier.py provide confidence that the final artifact (ingredient_model.pkl) behaves as expected on tricky inputs.
+### Configuration in `train.py`
+```python
+PYCARET_CONFIG = {
+    'remove_stopwords': True,      # Toggle stop word removal
+    'normalize': True,              # Lowercasing + punctuation
+}
+```
 
-Trade-off: This makes the tests dependent on the training step (python train_predict.py --mode train). This is a valid integration testing pattern and is automated in the run_project.sh script.
+### Alternative Considered
+- **No preprocessing**: Would introduce noise and sparse features; not suitable
 
-5. Scripting & Reproducibility
+---
 
-Decision: Separate training and prediction logic into one script (train_predict.py) controlled by an argparse flag (--mode).
+## 4. Train/Test Split & Validation Strategy
 
-Rationale: This follows a standard production pattern. You train a model artifact once, and then you predict with that artifact many times. This script cleanly separates these two distinct phases.
+### Decision
+**No explicit train/test split on training data**; use PyCaret's **stratified K-Fold cross-validation (10 folds)**.
 
-Automation: The run_project.sh script ensures full reproducibility. It creates a virtual environment, installs exact dependencies from requirements.txt, trains the model, runs predictions, and executes the tests, all in one command.
+### Rationale
+- **Dataset size**: Only 12 training samples; cannot afford to hold out 20-30% for validation
+- **Stratification**: Ensures each fold has balanced class distribution
+- **Small dataset handling**: K-fold provides reliable performance estimates
+- **Test set**: External test set (8 samples) used for final evaluation
+
+### Validation Pipeline
+```
+Train (12 samples)
+    ↓
+PyCaret 10-Fold CV
+    ↓
+Best model selected
+    ↓
+Test set evaluation (8 samples)
+```
+
+### Trade-offs
+| Approach | Pros | Cons |
+|----------|------|------|
+| Hold-out split | Simple, faster | Loses 2-3 samples; unreliable with n=12 |
+| K-Fold CV | Robust estimates | Computationally expensive (10 models trained) |
+| Leave-One-Out CV | Maximum data usage | Expensive with non-trivial datasets |
+
+---
+
+## 5. Evaluation Metrics
+
+### Decision
+Report **Macro F1 Score** as primary metric, plus:
+- Per-class Precision & Recall
+- Weighted F1 Score
+- Confusion Matrix
+
+### Rationale
+- **Macro F1**: Fair for imbalanced classes (e.g., if one class has fewer samples)
+- **Per-class metrics**: Identifies which classes are misclassified
+- **Confusion matrix**: Reveals systematic errors (e.g., instruction_like vs. ingredient_with_qty)
+
+### Calculations
+```
+Macro F1 = (F1_ingredient_only + F1_ingredient_with_qty + F1_instruction_like + F1_non_food) / 4
+
+Where: F1 = 2 * (Precision * Recall) / (Precision + Recall)
+```
+
+### Trade-offs
+| Metric | Use Case | Trade-off |
+|--------|----------|-----------|
+| Macro F1 | Imbalanced data | Ignores class weights |
+| Weighted F1 | Realistic performance | Less interpretable for small classes |
+| Accuracy | Simplicity | Misleading with imbalanced data |
+
+---
+
+## 6. Model Serialization & Persistence
+
+### Decision
+Use **pickle** for model serialization with version tracking.
+
+### Rationale
+- **Built-in support**: PyCaret models and scikit-learn pipelines are pickle-compatible
+- **Fast loading**: No serialization overhead
+- **Label encoding preservation**: Custom label encoder pickled alongside model
+
+### Limitations & Mitigations
+| Limitation | Mitigation |
+|-----------|-----------|
+| Python version dependency | Document Python version (3.8+) in requirements |
+| Not interoperable with other languages | Use ONNX export if cross-language support needed |
+| Large model files | Acceptable for this project size |
+
+### File Structure
+```
+models/
+├── best_model.pkl           # PyCaret best model
+└── label_encoder.pkl        # LabelEncoder for class names
+```
+
+### Alternative Considered
+- **ONNX format**: Language-agnostic; overkill for internal use
+- **JSON + weights**: Manual serialization; error-prone
+
+---
+
+## 7. Testing Strategy
+
+### Decision
+Implement **unit tests** with pytest covering:
+- Preprocessing edge cases (empty strings, special characters, extremes)
+- Text feature extraction correctness
+- Model training pipeline
+- Inference on unseen data
+
+### Test Categories
+| Test Type | Purpose | Examples |
+|-----------|---------|----------|
+| Preprocessing | Validate data cleaning | Empty string, special chars, unicode |
+| Feature extraction | Verify feature computation | Digit detection, verb count, length |
+| Pipeline | End-to-end training flow | Training completes, model saves |
+| Inference | Prediction correctness | Batch prediction, single sample |
+
+### Trade-offs
+| Decision | Trade-off |
+|----------|-----------|
+| Comprehensive unit tests | Requires maintenance effort vs. ensures reliability |
+| Mock external dependencies | Faster tests vs. less realistic coverage |
+| Use fixtures for data | Cleaner code vs. test data management |
+
+---
+
+## 8. Project Structure & Modularity
+
+### Decision
+Organize code into **three modules**:
+- `preprocessing.py` – Text cleaning and feature engineering
+- `train.py` – Model selection and training (PyCaret-based)
+- `predict.py` – Inference and prediction export
+
+### Rationale
+- **Separation of concerns**: Each module has single responsibility
+- **Reusability**: Preprocessing can be used independently
+- **Testability**: Each module can be unit tested in isolation
+- **Maintainability**: Clear dependencies; easy to debug
+
+### Module Dependencies
+```
+predict.py
+    ↓ imports
+train.py, preprocessing.py
+    ↓ imports
+pandas, sklearn, pycaret, nltk
+```
+
+---
+
+## 9. Reproducibility & Documentation
+
+### Decision
+Provide:
+1. **requirements.txt** – Fixed dependency versions
+2. **setup.sh** – Automated environment setup
+3. **README.md** – Complete usage guide
+4. **DECISIONS.md** (this file) – Design rationale
+
+### Rationale
+- **Reproducibility**: Any user can rebuild the environment identically
+- **Transparency**: Stakeholders understand design choices
+- **Maintenance**: Future updates easier with clear documentation
+
+### Versioning Strategy
+- **Pinned versions**: Ensures identical behavior across runs and environments
+- **NLTK resources**: Explicitly downloaded in setup.sh
+- **Seed setting**: Fixed random seed in PyCaret for deterministic model selection
+
+---
+
+## 10. Error Handling & Logging
+
+### Decision
+Implement **defensive programming**:
+- Type hints and input validation
+- Try-catch blocks for external operations (file I/O, model loading)
+- Informative error messages
+
+### Examples
+```python
+def load_data(filepath: str) -> pd.DataFrame:
+    """Load CSV with validation."""
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Data file not found: {filepath}")
+    df = pd.read_csv(filepath)
+    if df.empty:
+        raise ValueError("Dataset is empty")
+    return df
+```
+
+### Trade-offs
+| Approach | Pros | Cons |
+|----------|------|------|
+| Strict validation | Prevents silent failures | Verbose code |
+| Loose validation | Simpler code | Harder to debug |
+
+---
+
+## Known Limitations & Future Work
+
+### Current Limitations
+1. **Small dataset (12 samples)**: High variance in CV metrics; model may overfit
+2. **Language-specific**: Verb lists hardcoded for English
+3. **No class weights**: Assumes balanced data (actual: 3 ingredient_only, 3 ingredient_with_qty, 3 instruction_like, 3 non_food)
+4. **No hyperparameter tuning**: Uses PyCaret defaults
+
+### Recommended Improvements
+1. **Collect more data**: Aim for 100+ samples per class for robust evaluation
+2. **Domain-specific embeddings**: Train Word2Vec on recipe corpus
+3. **Multilingual support**: Extend preprocessing for other languages
+4. **Model monitoring**: Track prediction confidence and drift in production
+5. **A/B testing**: Compare against baseline/alternative models in production
+
+---
+
+## Summary Table
+
+| Component | Decision | Rationale |
+|-----------|----------|-----------|
+| Model Selection | PyCaret | Automated testing of multiple algorithms |
+| Features | Rule-based + TF-IDF | Domain-aware + statistical representation |
+| Preprocessing | Modular pipeline | Interpretable, configurable |
+| Validation | Stratified K-Fold CV | Robust with small datasets |
+| Metrics | Macro F1 + per-class | Fair evaluation for imbalanced classes |
+| Serialization | Pickle | Compatible with PyCaret & scikit-learn |
+| Testing | Unit tests (pytest) | Ensures reliability & maintainability |
+| Reproducibility | setup.sh + requirements.txt | Identical environment across machines |
+
