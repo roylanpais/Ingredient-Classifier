@@ -1,6 +1,6 @@
 # Ingredient Classification NLP Project
 
-A production-ready text classification pipeline for categorizing ingredient lines into four classes: `ingredient_only`, `ingredient_with_qty`, `instruction_like`, and `non_food`.
+A text classification pipeline for categorising ingredient lines into four classes: `ingredient_only`, `ingredient_with_qty`, `instruction_like`, and `non_food`.
 
 ## Project Structure
 
@@ -29,7 +29,7 @@ ingredient-classifier/
 ## Setup Instructions
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.10
 - pip and virtualenv
 
 ### Quick Start
