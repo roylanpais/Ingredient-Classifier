@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 from sklearn.preprocessing import LabelEncoder
 
-from preprocessing import TextPreprocessor
+from src.preprocessing import TextPreprocessor
 
 class TestDataLoading:
     """Test data loading utilities."""
