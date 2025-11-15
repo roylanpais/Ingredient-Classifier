@@ -1,13 +1,3 @@
-"""
-Inference and prediction generation module.
-
-This module handles:
-- Loading trained model and label encoder
-- Making predictions on test data
-- Computing classification metrics
-- Exporting predictions to CSV
-"""
-
 import json
 import os
 import pickle
@@ -51,13 +41,11 @@ def load_model_and_encoder() -> Tuple:
     if not os.path.exists(ENCODER_PATH):
         raise FileNotFoundError(f"Label encoder not found at {ENCODER_PATH}. Run train.py first.")
     
-    # Load model
     model = load_model(MODEL_PATH)
-    
-    # Load encoder
+
     with open(ENCODER_PATH, 'rb') as f:
         label_encoder = pickle.load(f)
-    print(f"✓ Label encoder loaded: {ENCODER_PATH}")
+    print(f" Label encoder loaded: {ENCODER_PATH}")
     
     return model, label_encoder
 
@@ -87,15 +75,13 @@ def load_test_data(filepath: str) -> pd.DataFrame:
     if 'text' not in df.columns:
         raise ValueError("Test DataFrame must contain 'text' column")
     
-    print(f"✓ Loaded {len(df)} test samples from {filepath}")
+    print(f" Loaded {len(df)} test samples from {filepath}")
     
-    # Initialize preprocessor
     preprocessor = TextPreprocessor(remove_stopwords=True)
-    
-    # Apply preprocessing
+
     df['text'] = df['text'].apply(lambda x: preprocessor.preprocess(str(x)))
     
-    print(f"✓ Test data preprocessing completed\n")
+    print(f" Test data preprocessing completed\n")
     
     return df
 
@@ -137,13 +123,9 @@ def make_predictions(model, label_encoder: LabelEncoder, test_data: pd.DataFrame
         except Exception as e2:
             raise RuntimeError(f"Failed to generate predictions: {str(e2)}")
     
-    # Create output dataframe
-    results = pd.DataFrame({
-        'text': test_data['text'].values,
-        'pred': pred_labels
-    })
+    results = pred_labels.rename(columns = {"prediction_label": "pred","prediction_score": "score"})
     
-    print(f"✓ Predictions generated: {len(results)} samples")
+    print(f" Predictions generated: {len(results)} samples")
     print(f"  Predicted classes: {results['pred'].unique()}")
     print(f"  Class distribution:\n{results['pred'].value_counts()}\n")
     
@@ -163,7 +145,7 @@ def compute_metrics(y_true, y_pred, label_encoder: LabelEncoder) -> dict:
         Dictionary of metrics or empty dict if no true labels.
     """
     if y_true is None or len(y_true) == 0:
-        print("⊘ True labels not available - skipping metrics computation")
+        print(" True labels not available - skipping metrics computation")
         return {}
     
     print("=" * 60)
@@ -232,13 +214,13 @@ def save_predictions(results: pd.DataFrame, metrics: dict = None):
     """
     # Save predictions
     results.to_csv(PREDICTIONS_FILE, index=False)
-    print(f"✓ Predictions saved: {PREDICTIONS_FILE}")
+    print(f" Predictions saved: {PREDICTIONS_FILE}")
     
     # Save metrics if available
     if metrics:
         with open(TEST_METRICS_FILE, 'w') as f:
             json.dump(metrics, f, indent=2)
-        print(f"✓ Metrics saved: {TEST_METRICS_FILE}")
+        print(f" Metrics saved: {TEST_METRICS_FILE}")
     
     print(f"\nOutput files:")
     print(f"  - {PREDICTIONS_FILE}")
@@ -282,7 +264,7 @@ def main():
         print("=" * 60)
         
     except Exception as e:
-        print(f"\n✗ Inference failed: {str(e)}")
+        print(f"\n Inference failed: {str(e)}")
         raise
 
 
