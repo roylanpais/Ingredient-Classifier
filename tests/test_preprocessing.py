@@ -6,7 +6,7 @@ sys.path.append(str(project_root))
 
 import pytest
 
-from preprocessing import TextPreprocessor, validate_data
+from src.preprocessing import TextPreprocessor, validate_data
 
 
 class TestTextCleaning:
