@@ -58,13 +58,13 @@ def load_and_preprocess_data(filepath: str) -> pd.DataFrame:
     if 'text' not in df.columns or 'label' not in df.columns:
         raise ValueError("DataFrame must contain 'text' and 'label' columns")
     
-    print(f"✓ Loaded {len(df)} training samples from {filepath}")
+    print(f" Loaded {len(df)} training samples from {filepath}")
     
     preprocessor = TextPreprocessor(remove_stopwords=PYCARET_CONFIG['remove_stopwords'])
     
     df['text'] = df['text'].apply(lambda x: preprocessor.preprocess(str(x)))
     
-    print(f"✓ Preprocessing completed")
+    print(f" Preprocessing completed")
     print(f"  Classes: {df['label'].unique()}")
     print(f"  Class distribution:\n{df['label'].value_counts()}\n")
     
@@ -99,9 +99,9 @@ def train_model(df: pd.DataFrame) -> tuple:
             normalize=PYCARET_CONFIG['normalize'],
             n_jobs=PYCARET_CONFIG['n_jobs'],
         )
-        print("✓ PyCaret setup completed\n")
+        print(" PyCaret setup completed\n")
     except Exception as e:
-        print(f"✗ PyCaret setup failed: {str(e)}")
+        print(f" PyCaret setup failed: {str(e)}")
         raise
     
     # Compare models
@@ -112,23 +112,23 @@ def train_model(df: pd.DataFrame) -> tuple:
         blender = exp.blend_models(tuned_top3)
         stacker = exp.stack_models(tuned_top3)
         best_model = exp.automl(optimize = 'F1')
-        print("\n✓ Model comparison completed")
+        print("\n Model comparison completed")
         
         # Pull comparison results
         model_comparison = exp.pull()
         model_comparison.to_csv(os.path.join(OUTPUT_DIR, 'models_comparison.csv'), index=False)
         print(f"  Model comparison saved to {OUTPUT_DIR}/models_comparison.csv")
         
-        print(f"\n✓ Best model: {type(best_model).__name__}")
+        print(f"\n Best model: {type(best_model).__name__}")
     except Exception as e:
-        print(f"✗ Model comparison failed: {str(e)}")
+        print(f" Model comparison failed: {str(e)}")
         raise
     
     # Get label encoder
     label_encoder = LabelEncoder()
     label_encoder.fit(df['label'])
     
-    print(f"\n✓ Label encoder created with classes: {list(label_encoder.classes_)}")
+    print(f"\n Label encoder created with classes: {list(label_encoder.classes_)}")
     
     return best_model, label_encoder, exp
 
@@ -154,7 +154,7 @@ def save_artifacts(exp, best_model, label_encoder: LabelEncoder) -> dict:
     encoder_path = os.path.join(MODEL_DIR, 'label_encoder.pkl')
     with open(encoder_path, 'wb') as f:
         pickle.dump(label_encoder, f)
-    print(f"✓ Label encoder saved: {encoder_path}")
+    print(f" Label encoder saved: {encoder_path}")
     
     return {
         'model_path': model_path,
@@ -199,7 +199,7 @@ def main():
         metrics_path = os.path.join(OUTPUT_DIR, 'metrics.json')
         with open(metrics_path, 'w') as f:
             json.dump(metrics, f, indent=2)
-        print(f"✓ Metrics saved: {metrics_path}")
+        print(f" Metrics saved: {metrics_path}")
         
         print("\n" + "=" * 60)
         print("TRAINING COMPLETED SUCCESSFULLY")
@@ -210,7 +210,7 @@ def main():
         print("=" * 60 + "\n")
         
     except Exception as e:
-        print(f"\n✗ Training failed: {str(e)}")
+        print(f"\n Training failed: {str(e)}")
         raise
 
 
