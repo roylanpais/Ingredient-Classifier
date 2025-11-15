@@ -86,8 +86,8 @@ Implement **modular preprocessing** with these steps:
 ### Trade-offs
 | Decision | Trade-off |
 |----------|-----------|
-| Remove stopwords? | Removes noise (better for small datasets) vs. loses contextual info (rare for ingredient domain) |
-| Lemmatization? | Reduces feature dimensionality vs. loses word form information |
+| Remove stopwords | Removes noise (better for small datasets) vs. loses contextual info (rare for ingredient domain) |
+| Lemmatization | Reduces feature dimensionality vs. loses word form information |
 
 ### Configuration in `train.py`
 ```python
@@ -244,13 +244,6 @@ pandas, sklearn, pycaret, nltk
 ---
 
 ## 9. Reproducibility & Documentation
-
-### Decision
-Provide:
-1. **requirements.txt** – Fixed dependency versions
-2. **setup.sh** – Automated environment setup
-3. **README.md** – Complete usage guide
-4. **DECISIONS.md** (this file) – Design rationale
 
 ### Rationale
 - **Reproducibility**: Any user can rebuild the environment identically
