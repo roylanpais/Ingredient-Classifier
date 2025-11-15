@@ -28,6 +28,7 @@ PYCARET_CONFIG = {
     'n_jobs': -1,
     'session_id': 42,
     'verbose': False,
+    'remove_stopwords': True,
 }
 
 
@@ -58,10 +59,8 @@ def load_and_preprocess_data(filepath: str) -> pd.DataFrame:
     
     print(f"✓ Loaded {len(df)} training samples from {filepath}")
     
-    # Initialize preprocessor
     preprocessor = TextPreprocessor(remove_stopwords=PYCARET_CONFIG['remove_stopwords'])
     
-    # Apply preprocessing
     df['text'] = df['text'].apply(lambda x: preprocessor.preprocess(str(x)))
     
     print(f"✓ Preprocessing completed")
@@ -85,7 +84,6 @@ def train_model(df: pd.DataFrame) -> tuple:
     print("MODEL TRAINING WITH PYCARET")
     print("=" * 60)
     
-    # Initialize PyCaret experiment
     exp = ClassificationExperiment()
     
     try:
@@ -145,11 +143,9 @@ def save_artifacts(exp, best_model, label_encoder: LabelEncoder) -> dict:
     print("SAVING MODEL ARTIFACTS")
     print("=" * 60)
     
-    # Save model using pickle
     model_path = os.path.join(MODEL_DIR, 'best_model')
     exp.save_model(best_model, model_path)
 
-    # Save label encoder
     encoder_path = os.path.join(MODEL_DIR, 'label_encoder.pkl')
     with open(encoder_path, 'wb') as f:
         pickle.dump(label_encoder, f)
@@ -172,10 +168,8 @@ def get_classification_metrics(exp, best_model) -> dict:
     Returns:
         Dictionary of metrics.
     """
-    # Get metrics from PyCaret
     metrics = exp.pull()
     metrics.reset_index(drop=True, inplace=True)
-    # Extract key metrics
     metrics_dict = {
         'accuracy': float(metrics.loc[0, 'Accuracy']) if 'Accuracy' in metrics.columns else None,
         'precision': float(metrics.loc[0, 'Prec.']) if 'Prec.' in metrics.columns else None,
@@ -191,19 +185,12 @@ def get_classification_metrics(exp, best_model) -> dict:
 def main():
     """Main training pipeline."""
     try:
-        # Load and preprocess data
         df_train = load_and_preprocess_data(TRAIN_FILE)
         
-        # Train model
         best_model, label_encoder, exp = train_model(df_train)
-        
-        # Save artifacts
         artifacts = save_artifacts(exp, best_model, label_encoder)
-        
-        # Get metrics
+
         metrics = get_classification_metrics(exp, best_model)
-        
-        # Save metrics
         metrics_path = os.path.join(OUTPUT_DIR, 'metrics.json')
         with open(metrics_path, 'w') as f:
             json.dump(metrics, f, indent=2)
