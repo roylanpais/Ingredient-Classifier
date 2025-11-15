@@ -19,6 +19,7 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score
 from sklearn.preprocessing import LabelEncoder
 
 from preprocessing import TextPreprocessor
+from pycaret.classification import load_model, predict_model
 
 warnings.filterwarnings('ignore')
 
@@ -28,7 +29,7 @@ MODEL_DIR = 'models'
 OUTPUT_DIR = 'outputs'
 TEST_FILE = os.path.join(DATA_DIR, 'test.csv')
 
-MODEL_PATH = os.path.join(MODEL_DIR, 'best_model.pkl')
+MODEL_PATH = os.path.join(MODEL_DIR, 'best_model')
 ENCODER_PATH = os.path.join(MODEL_DIR, 'label_encoder.pkl')
 PREDICTIONS_FILE = os.path.join(OUTPUT_DIR, 'predictions.csv')
 TEST_METRICS_FILE = os.path.join(OUTPUT_DIR, 'test_metrics.json')
@@ -51,9 +52,7 @@ def load_model_and_encoder() -> Tuple:
         raise FileNotFoundError(f"Label encoder not found at {ENCODER_PATH}. Run train.py first.")
     
     # Load model
-    with open(MODEL_PATH, 'rb') as f:
-        model = pickle.load(f)
-    print(f"✓ Model loaded: {MODEL_PATH}")
+    model = load_model(MODEL_PATH)
     
     # Load encoder
     with open(ENCODER_PATH, 'rb') as f:
@@ -121,7 +120,7 @@ def make_predictions(model, label_encoder: LabelEncoder, test_data: pd.DataFrame
     # PyCaret models typically use .predict() method
     try:
         # Get predictions (assuming model.predict returns encoded labels)
-        predictions = model.predict(test_data[['text']])
+        predictions = predict_model(model, data = test_data[['text']])
         
         # If predictions are numeric, decode them
         if isinstance(predictions, (list, pd.Series)):
@@ -133,7 +132,7 @@ def make_predictions(model, label_encoder: LabelEncoder, test_data: pd.DataFrame
         print(f"Warning: Standard predict failed, attempting alternative: {str(e)}")
         # Fallback: try with the full dataframe
         try:
-            predictions = model.predict(test_data)
+            predictions = predict_model(model, data = test_data)
             pred_labels = label_encoder.inverse_transform(predictions)
         except Exception as e2:
             raise RuntimeError(f"Failed to generate predictions: {str(e2)}")

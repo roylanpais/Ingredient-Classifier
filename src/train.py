@@ -15,15 +15,7 @@ import warnings
 from pathlib import Path
 
 import pandas as pd
-from pycaret.classification import (
-    ClassificationExperiment,
-    compare_models,
-    create_model,
-    get_config,
-    pull,
-    save_model,
-    set_config,
-)
+from pycaret.classification import ClassificationExperiment
 from sklearn.preprocessing import LabelEncoder
 
 from preprocessing import TextPreprocessor
@@ -47,7 +39,7 @@ PYCARET_CONFIG = {
     'remove_outliers': True,
     'outliers_threshold': 0.05,
     'n_jobs': -1,
-    'seed': 42,
+    'session_id': 42,
     'verbose': False,
 }
 
@@ -116,7 +108,7 @@ def train_model(df: pd.DataFrame) -> tuple:
             text_features=['text'],
             train_size=0.8,
             fold=10,
-            seed=PYCARET_CONFIG['seed'],
+            session_id =PYCARET_CONFIG['session_id'],
             verbose=PYCARET_CONFIG['verbose'],
             normalize=PYCARET_CONFIG['normalize'],
             remove_stopwords=PYCARET_CONFIG['remove_stopwords'],
@@ -130,11 +122,11 @@ def train_model(df: pd.DataFrame) -> tuple:
     # Compare models
     print("Testing multiple models...")
     try:
-        best_model = compare_models(n_select=1)
+        best_model = exp.compare_models(n_select=1)
         print("\n✓ Model comparison completed")
         
         # Pull comparison results
-        model_comparison = pull()
+        model_comparison = exp.pull()
         model_comparison.to_csv(os.path.join(OUTPUT_DIR, 'models_comparison.csv'), index=False)
         print(f"  Model comparison saved to {OUTPUT_DIR}/models_comparison.csv")
         
@@ -152,7 +144,7 @@ def train_model(df: pd.DataFrame) -> tuple:
     return best_model, label_encoder, exp
 
 
-def save_artifacts(best_model, label_encoder: LabelEncoder) -> dict:
+def save_artifacts(exp, best_model, label_encoder: LabelEncoder) -> dict:
     """
     Save trained model and label encoder.
     
@@ -168,11 +160,9 @@ def save_artifacts(best_model, label_encoder: LabelEncoder) -> dict:
     print("=" * 60)
     
     # Save model using pickle
-    model_path = os.path.join(MODEL_DIR, 'best_model.pkl')
-    with open(model_path, 'wb') as f:
-        pickle.dump(best_model, f)
-    print(f"✓ Model saved: {model_path}")
-    
+    model_path = os.path.join(MODEL_DIR, 'best_model')
+    exp.save_model(best_model, model_path)
+
     # Save label encoder
     encoder_path = os.path.join(MODEL_DIR, 'label_encoder.pkl')
     with open(encoder_path, 'wb') as f:
@@ -197,8 +187,8 @@ def get_classification_metrics(exp, best_model) -> dict:
         Dictionary of metrics.
     """
     # Get metrics from PyCaret
-    metrics = pull()
-    
+    metrics = exp.pull()
+    metrics.reset_index(drop=True, inplace=True)
     # Extract key metrics
     metrics_dict = {
         'accuracy': float(metrics.loc[0, 'Accuracy']) if 'Accuracy' in metrics.columns else None,
@@ -222,7 +212,7 @@ def main():
         best_model, label_encoder, exp = train_model(df_train)
         
         # Save artifacts
-        artifacts = save_artifacts(best_model, label_encoder)
+        artifacts = save_artifacts(exp, best_model, label_encoder)
         
         # Get metrics
         metrics = get_classification_metrics(exp, best_model)
