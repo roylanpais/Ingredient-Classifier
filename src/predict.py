@@ -111,7 +111,7 @@ def make_predictions(model, label_encoder: LabelEncoder, test_data: pd.DataFrame
         except Exception as e2:
             raise RuntimeError(f"Failed to generate predictions: {str(e2)}")
             
-    pred_labels = pred_labels["text", "prediction_label"] 
+    pred_labels = pred_labels[["text", "prediction_label"]]
     results = pred_labels.rename(columns = {"prediction_label": "pred"})
     
     print(f" Predictions generated: {len(results)} samples")
