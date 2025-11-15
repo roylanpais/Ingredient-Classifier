@@ -9,7 +9,7 @@ echo "==========================================="
 
 # Step 1: Create virtual environment
 echo "Step 1: Creating Python virtual environment..."
-python3 -m venv venv
+python3.10 -m venv venv
 source venv/bin/activate
 
 # Step 2: Upgrade pip
