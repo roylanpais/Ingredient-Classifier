@@ -35,7 +35,7 @@ def load_model_and_encoder() -> Tuple:
     Raises:
         FileNotFoundError: If model or encoder files don't exist.
     """
-    if not os.path.exists(MODEL_PATH):
+    if not os.path.exists(MODEL_PATH + ".pkl"):
         raise FileNotFoundError(f"Model not found at {MODEL_PATH}. Run train.py first.")
     
     if not os.path.exists(ENCODER_PATH):
@@ -68,7 +68,6 @@ def load_test_data(filepath: str) -> pd.DataFrame:
         raise FileNotFoundError(f"Test data not found at {filepath}")
     
     df = pd.read_csv(filepath)
-    
     if df.empty:
         raise ValueError("Test dataset is empty")
     
@@ -76,11 +75,8 @@ def load_test_data(filepath: str) -> pd.DataFrame:
         raise ValueError("Test DataFrame must contain 'text' column")
     
     print(f" Loaded {len(df)} test samples from {filepath}")
-    
     preprocessor = TextPreprocessor(remove_stopwords=True)
-
     df['text'] = df['text'].apply(lambda x: preprocessor.preprocess(str(x)))
-    
     print(f" Test data preprocessing completed\n")
     
     return df
@@ -101,22 +97,14 @@ def make_predictions(model, label_encoder: LabelEncoder, test_data: pd.DataFrame
     print("=" * 60)
     print("GENERATING PREDICTIONS")
     print("=" * 60)
-    
-    # Note: The actual prediction depends on model type
-    # PyCaret models typically use .predict() method
     try:
-        # Get predictions (assuming model.predict returns encoded labels)
         predictions = predict_model(model, data = test_data[['text']])
-        
-        # If predictions are numeric, decode them
         if isinstance(predictions, (list, pd.Series)):
             pred_labels = label_encoder.inverse_transform(predictions)
         else:
-            # If already string labels
             pred_labels = predictions
     except Exception as e:
         print(f"Warning: Standard predict failed, attempting alternative: {str(e)}")
-        # Fallback: try with the full dataframe
         try:
             predictions = predict_model(model, data = test_data)
             pred_labels = label_encoder.inverse_transform(predictions)
@@ -131,102 +119,18 @@ def make_predictions(model, label_encoder: LabelEncoder, test_data: pd.DataFrame
     
     return results
 
-
-def compute_metrics(y_true, y_pred, label_encoder: LabelEncoder) -> dict:
-    """
-    Compute classification metrics (only if true labels available).
-    
-    Args:
-        y_true: True labels (or None).
-        y_pred: Predicted labels.
-        label_encoder: LabelEncoder for class names.
-        
-    Returns:
-        Dictionary of metrics or empty dict if no true labels.
-    """
-    if y_true is None or len(y_true) == 0:
-        print(" True labels not available - skipping metrics computation")
-        return {}
-    
-    print("=" * 60)
-    print("CLASSIFICATION METRICS")
-    print("=" * 60)
-    
-    # Encode true labels for metric computation
-    y_true_encoded = label_encoder.transform(y_true)
-    y_pred_encoded = label_encoder.transform(y_pred)
-    
-    # Compute metrics
-    accuracy = (y_true_encoded == y_pred_encoded).mean()
-    macro_f1 = f1_score(y_true_encoded, y_pred_encoded, average='macro')
-    weighted_f1 = f1_score(y_true_encoded, y_pred_encoded, average='weighted')
-    
-    # Per-class metrics
-    report = classification_report(
-        y_true_encoded, y_pred_encoded,
-        target_names=label_encoder.classes_,
-        output_dict=True
-    )
-    
-    # Confusion matrix
-    conf_matrix = confusion_matrix(y_true_encoded, y_pred_encoded)
-    
-    metrics = {
-        'accuracy': float(accuracy),
-        'macro_f1': float(macro_f1),
-        'weighted_f1': float(weighted_f1),
-        'per_class_metrics': {
-            label: {
-                'precision': float(report[label]['precision']),
-                'recall': float(report[label]['recall']),
-                'f1': float(report[label]['f1-score']),
-                'support': int(report[label]['support'])
-            }
-            for label in label_encoder.classes_
-        },
-        'confusion_matrix': conf_matrix.tolist(),
-    }
-    
-    # Print metrics
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"Macro F1 Score: {macro_f1:.4f}")
-    print(f"Weighted F1 Score: {weighted_f1:.4f}")
-    print("\nPer-class metrics:")
-    for label in label_encoder.classes_:
-        prec = metrics['per_class_metrics'][label]['precision']
-        rec = metrics['per_class_metrics'][label]['recall']
-        f1 = metrics['per_class_metrics'][label]['f1']
-        supp = metrics['per_class_metrics'][label]['support']
-        print(f"  {label:20s} - Prec: {prec:.3f}, Rec: {rec:.3f}, F1: {f1:.3f}, Support: {supp}")
-    
-    print("=" * 60 + "\n")
-    
-    return metrics
-
-
-def save_predictions(results: pd.DataFrame, metrics: dict = None):
+def save_predictions(results: pd.DataFrame):
     """
     Save predictions and metrics to files.
     
     Args:
         results: DataFrame with predictions.
-        metrics: Dictionary of metrics or None.
     """
-    # Save predictions
     results.to_csv(PREDICTIONS_FILE, index=False)
     print(f" Predictions saved: {PREDICTIONS_FILE}")
     
-    # Save metrics if available
-    if metrics:
-        with open(TEST_METRICS_FILE, 'w') as f:
-            json.dump(metrics, f, indent=2)
-        print(f" Metrics saved: {TEST_METRICS_FILE}")
-    
-    print(f"\nOutput files:")
+    print(f"\nOutput file:")
     print(f"  - {PREDICTIONS_FILE}")
-    if metrics:
-        print(f"  - {TEST_METRICS_FILE}")
-
 
 def main():
     """Main inference pipeline."""
@@ -235,29 +139,12 @@ def main():
         print("INFERENCE PIPELINE")
         print("=" * 60 + "\n")
         
-        # Load model and encoder
         model, label_encoder = load_model_and_encoder()
         print()
-        
-        # Load test data
+
         test_data = load_test_data(TEST_FILE)
-        
-        # Generate predictions
         results = make_predictions(model, label_encoder, test_data)
-        
-        # Try to compute metrics if true labels exist
-        metrics = {}
-        if 'label' in pd.read_csv(TEST_FILE).columns:
-            test_data_original = pd.read_csv(TEST_FILE)
-            # Filter out empty labels
-            mask = test_data_original['label'].notna() & (test_data_original['label'] != '')
-            if mask.any():
-                y_true = test_data_original.loc[mask, 'label'].values
-                y_pred = results.loc[mask, 'pred'].values
-                metrics = compute_metrics(y_true, y_pred, label_encoder)
-        
-        # Save outputs
-        save_predictions(results, metrics if metrics else None)
+        save_predictions(results)
         
         print("=" * 60)
         print("INFERENCE COMPLETED SUCCESSFULLY")
