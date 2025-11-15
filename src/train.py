@@ -1,13 +1,3 @@
-"""
-Model training pipeline using PyCaret for automated ML.
-
-This module handles:
-- Data loading and preprocessing
-- Model selection and training with PyCaret
-- Hyperparameter optimization
-- Model persistence
-"""
-
 import json
 import os
 import pickle
@@ -22,20 +12,17 @@ from preprocessing import TextPreprocessor
 
 warnings.filterwarnings('ignore')
 
-# Configuration
 DATA_DIR = 'data'
 MODEL_DIR = 'models'
 OUTPUT_DIR = 'outputs'
 TRAIN_FILE = os.path.join(DATA_DIR, 'train.csv')
 
-# Create output directories
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # PyCaret configuration
 PYCARET_CONFIG = {
     'normalize': True,
-    'remove_stopwords': True,
     'remove_outliers': True,
     'outliers_threshold': 0.05,
     'n_jobs': -1,
@@ -111,7 +98,6 @@ def train_model(df: pd.DataFrame) -> tuple:
             session_id =PYCARET_CONFIG['session_id'],
             verbose=PYCARET_CONFIG['verbose'],
             normalize=PYCARET_CONFIG['normalize'],
-            remove_stopwords=PYCARET_CONFIG['remove_stopwords'],
             n_jobs=PYCARET_CONFIG['n_jobs'],
         )
         print("✓ PyCaret setup completed\n")
