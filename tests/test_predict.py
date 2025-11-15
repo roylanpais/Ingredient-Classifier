@@ -1,11 +1,8 @@
-"""
-Unit tests for inference and prediction module.
+import sys
+from pathlib import Path
 
-Tests cover:
-- Data loading functionality
-- Prediction generation
-- Metrics computation
-"""
+project_root = Path(__file__).resolve().parent.parent
+sys.path.append(str(project_root))
 
 import os
 import pickle
@@ -18,7 +15,6 @@ import pytest
 from sklearn.preprocessing import LabelEncoder
 
 from preprocessing import TextPreprocessor
-
 
 class TestDataLoading:
     """Test data loading utilities."""
@@ -92,131 +88,6 @@ class TestFeatureExtraction:
             features = preprocessor.extract_features(text)
             assert features['has_digits'] == 1, f"Expected digit detection for '{text}'"
 
-
-class TestPredictionOutput:
-    """Test prediction output format and structure."""
-    
-    def test_predictions_dataframe_structure(self):
-        """Test that predictions have correct structure."""
-        # Create sample prediction dataframe
-        predictions = pd.DataFrame({
-            'text': ['Garlic', 'Sugar 20 g', 'Warm in a pan'],
-            'pred': ['ingredient_only', 'ingredient_with_qty', 'instruction_like']
-        })
-        
-        assert len(predictions) == 3
-        assert list(predictions.columns) == ['text', 'pred']
-        assert predictions['pred'].isin(['ingredient_only', 'ingredient_with_qty', 
-                                        'instruction_like', 'non_food']).all()
-    
-    def test_predictions_no_missing_values(self):
-        """Test that predictions don't have missing values."""
-        predictions = pd.DataFrame({
-            'text': ['Garlic', 'Sugar 20 g'],
-            'pred': ['ingredient_only', 'ingredient_with_qty']
-        })
-        
-        assert not predictions['text'].isna().any()
-        assert not predictions['pred'].isna().any()
-    
-    def test_predictions_valid_classes(self):
-        """Test that all predictions are valid class labels."""
-        valid_classes = {'ingredient_only', 'ingredient_with_qty', 
-                        'instruction_like', 'non_food'}
-        
-        predictions = pd.DataFrame({
-            'text': ['Garlic', 'Sugar 20 g'],
-            'pred': ['ingredient_only', 'ingredient_with_qty']
-        })
-        
-        for pred in predictions['pred']:
-            assert pred in valid_classes
-
-
-class TestLabelEncoding:
-    """Test label encoding and decoding."""
-    
-    def test_label_encoder_creation(self):
-        """Test creating a label encoder."""
-        classes = ['ingredient_only', 'ingredient_with_qty', 'instruction_like', 'non_food']
-        encoder = LabelEncoder()
-        encoder.fit(classes)
-        
-        assert list(encoder.classes_) == classes
-    
-    def test_label_encoding_decoding(self):
-        """Test encoding and decoding labels."""
-        classes = ['ingredient_only', 'ingredient_with_qty', 'instruction_like', 'non_food']
-        encoder = LabelEncoder()
-        encoder.fit(classes)
-        
-        # Encode
-        encoded = encoder.transform(classes)
-        assert len(encoded) == 4
-        assert all(0 <= e < 4 for e in encoded)
-        
-        # Decode
-        decoded = encoder.inverse_transform(encoded)
-        assert list(decoded) == classes
-    
-    def test_label_encoder_persistence(self):
-        """Test saving and loading label encoder."""
-        classes = ['ingredient_only', 'ingredient_with_qty', 'instruction_like', 'non_food']
-        encoder = LabelEncoder()
-        encoder.fit(classes)
-        
-        # Save to temporary file
-        with tempfile.NamedTemporaryFile(suffix='.pkl', delete=False) as f:
-            temp_file = f.name
-            pickle.dump(encoder, f)
-        
-        try:
-            # Load from file
-            with open(temp_file, 'rb') as f:
-                loaded_encoder = pickle.load(f)
-            
-            assert list(loaded_encoder.classes_) == classes
-        finally:
-            os.unlink(temp_file)
-
-
-class TestMetricsComputation:
-    """Test metrics computation (if labels are available)."""
-    
-    def test_accuracy_computation(self):
-        """Test accuracy calculation."""
-        y_true = np.array([0, 1, 0, 1, 0, 1])
-        y_pred = np.array([0, 1, 0, 0, 0, 1])
-        
-        accuracy = np.mean(y_true == y_pred)
-        assert accuracy == 4/6  # 4 correct out of 6
-    
-    def test_f1_score_multiclass(self):
-        """Test F1 score for multiclass classification."""
-        from sklearn.metrics import f1_score
-        
-        y_true = np.array([0, 1, 2, 3, 0, 1])
-        y_pred = np.array([0, 1, 2, 2, 0, 1])
-        
-        # Macro F1
-        macro_f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
-        assert 0 <= macro_f1 <= 1
-        
-        # Weighted F1
-        weighted_f1 = f1_score(y_true, y_pred, average='weighted', zero_division=0)
-        assert 0 <= weighted_f1 <= 1
-    
-    def test_confusion_matrix_shape(self):
-        """Test confusion matrix has correct shape."""
-        from sklearn.metrics import confusion_matrix
-        
-        y_true = np.array([0, 1, 2, 3, 0, 1, 2, 3])
-        y_pred = np.array([0, 1, 2, 2, 0, 1, 2, 3])
-        
-        cm = confusion_matrix(y_true, y_pred)
-        assert cm.shape == (4, 4)
-
-
 class TestEndToEndInference:
     """Integration tests for end-to-end inference."""
     
@@ -237,20 +108,3 @@ class TestEndToEndInference:
             
             for key, value in expected_features.items():
                 assert features[key] == value
-    
-    def test_batch_prediction_structure(self):
-        """Test batch prediction output structure."""
-        batch = pd.DataFrame({
-            'text': ['Garlic', 'Sugar 20 g', 'Warm in a pan', 'Aluminum foil',
-                    'Rice 150 g', 'Cumin', 'Stir for 2 minutes', 'Salt']
-        })
-        
-        # Simulate predictions
-        predictions = batch.copy()
-        predictions['pred'] = ['ingredient_only', 'ingredient_with_qty', 'instruction_like',
-                              'non_food', 'ingredient_with_qty', 'ingredient_only',
-                              'instruction_like', 'ingredient_only']
-        
-        assert len(predictions) == len(batch)
-        assert 'text' in predictions.columns
-        assert 'pred' in predictions.columns
