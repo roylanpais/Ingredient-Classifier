@@ -107,7 +107,11 @@ def train_model(df: pd.DataFrame) -> tuple:
     # Compare models
     print("Testing multiple models...")
     try:
-        best_model = exp.compare_models(n_select=1)
+        top3 = exp.compare_models(n_select = 3, sort = 'F1')
+        tuned_top3 = [exp.tune_model(i, optimize = 'F1') for i in top3]
+        blender = exp.blend_models(tuned_top3)
+        stacker = exp.stack_models(tuned_top3)
+        best_model = exp.automl(optimize = 'F1')
         print("\n✓ Model comparison completed")
         
         # Pull comparison results
