@@ -29,6 +29,7 @@ PYCARET_CONFIG = {
     'session_id': 42,
     'verbose': False,
     'remove_stopwords': True,
+    'train_size': 0.7,
 }
 
 
@@ -91,7 +92,7 @@ def train_model(df: pd.DataFrame) -> tuple:
             data=df,
             target='label',
             text_features=['text'],
-            train_size=0.8,
+            train_size=PYCARET_CONFIG['train_size'],
             fold=10,
             session_id =PYCARET_CONFIG['session_id'],
             verbose=PYCARET_CONFIG['verbose'],
