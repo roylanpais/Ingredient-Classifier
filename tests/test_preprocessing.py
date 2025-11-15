@@ -1,11 +1,8 @@
-"""
-Unit tests for preprocessing module.
+import sys
+from pathlib import Path
 
-Tests cover:
-- Text cleaning edge cases
-- Feature extraction correctness
-- Preprocessing pipeline
-"""
+project_root = Path(__file__).resolve().parent.parent
+sys.path.append(str(project_root))
 
 import pytest
 
