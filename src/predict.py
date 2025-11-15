@@ -110,8 +110,9 @@ def make_predictions(model, label_encoder: LabelEncoder, test_data: pd.DataFrame
             pred_labels = label_encoder.inverse_transform(predictions)
         except Exception as e2:
             raise RuntimeError(f"Failed to generate predictions: {str(e2)}")
-    
-    results = pred_labels.rename(columns = {"prediction_label": "pred","prediction_score": "score"})
+            
+    pred_labels = pred_labels["text", "prediction_label"] 
+    results = pred_labels.rename(columns = {"prediction_label": "pred"})
     
     print(f" Predictions generated: {len(results)} samples")
     print(f"  Predicted classes: {results['pred'].unique()}")
